@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+  datasource:
+    url: jdbc:mysql://localhost:3306/cat_csv
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
