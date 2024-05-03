@@ -2,16 +2,18 @@ package com.kieran.csvdemo.service;
 
 import com.kieran.csvdemo.entity.Cat;
 import com.kieran.csvdemo.repository.CatRepository;
-import com.opencsv.CSVReader;
-import com.opencsv.exceptions.CsvException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.FileReader;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,39 +23,45 @@ import java.util.List;
 public class CatService {
 
     private final CatRepository catRepository;
-    private final String FILE_PATH = "C:\\Users\\kiera\\Desktop\\Projects\\";
 
     public ResponseEntity<String> uploadCatsFromCsv(MultipartFile file) {
-        log.info("In CatService::uploadCatsFromCsv. Attempting to save file to DB");
+        log.info("CatService::uploadCatsFromCsv. Attempting to save file to DB");
+        long start = System.currentTimeMillis();
         try {
-
-            CSVReader reader = new CSVReader(new FileReader(FILE_PATH + file.getOriginalFilename()));
-            List<String[]> rows = reader.readAll();
             List<Cat> cats = new ArrayList<>();
-            for (String[] row : rows) {
-                log.info("Row: {}, {}, {}, {}, {}", row[0], row[1], row[2], row[3], row[4]);
+            getCSVRecordsFromFile(file).forEach(record -> {
+                log.info("Row: {}, {}, {}, {}, {}",
+                        record.get(0), record.get(1), record.get(2), record.get(3), record.get(4));
                 cats.add(Cat.builder()
-                        .id(row[0])
-                        .name(row[1])
-                        .breed(row[2])
-                        .color(row[3])
-                        .age(row[4])
+                        .id(record.get(0))
+                        .name(record.get(1))
+                        .breed(record.get(2))
+                        .color(record.get(3))
+                        .age(record.get(4))
                         .build());
-            }
-
+            });
             catRepository.saveAll(cats);
-            log.info("End of CatService::uploadCatsFromCsv. Successfully saved rows to DB");
+            log.info("End CatService::uploadCatsFromCsv. Successfully saved rows to DB in {}ms",
+                    System.currentTimeMillis() - start);
             return ResponseEntity.ok().body("Success");
-
-        } catch (CsvException e) {
-            log.error("CatService::uploadCatsFromCsv. Encountered CsvException: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Encountered CsvException: " + e.getMessage());
-        } catch (IOException e) {
-            log.error("CatService::uploadCatsFromCsv. Encountered IOException: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Encountered IOException: " + e.getMessage());
         } catch (Exception e) {
-            log.error("CatService::uploadCatsFromCsv. Encountered unknown exception: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Encountered unknown exception: " + e.getMessage());
+            return handleExceptions(e, "uploadCatsFromCsv");
+        }
+    }
+
+    private List<CSVRecord> getCSVRecordsFromFile(MultipartFile file) throws IOException {
+        log.info("CatService::getCSVRecordsFromFile");
+        BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
+        CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT);
+        return csvParser.getRecords();
+    }
+
+    private ResponseEntity<String> handleExceptions(Exception e, String method) {
+        log.error("CatService::handleExceptions. Received {} from {} method", e, method);
+        if (e instanceof IOException) {
+            return ResponseEntity.internalServerError().body("IOException occurred: " + e.getMessage());
+        } else {
+            return ResponseEntity.internalServerError().body("Exception occurred: " + e.getMessage());
         }
     }
 }
